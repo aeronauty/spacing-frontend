@@ -70,7 +70,7 @@ Honestly, this could've been vanilla JS. But React's declarative approach makes 
 
 ## Deployment
 
-This project is configured to automatically deploy to GitHub Pages. Every push to the `main` branch will trigger a build and deployment.
+This project is configured to automatically deploy to GitHub Pages here - https://aeronauty.github.io/spacing-frontend/. Every push to the `main` branch will trigger a build and deployment.
 
 
 
