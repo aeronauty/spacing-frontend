@@ -31,12 +31,15 @@
 
 .plot-container {
   flex-shrink: 0;
+  width: 100%;
+  max-width: 600px;
 }
 
 .controls-container {
   min-width: 220px;
 }
 
+/* Tablet and below */
 @media (max-width: 900px) {
   .main {
     flex-direction: column;
@@ -46,5 +49,42 @@
   .controls-container {
     width: 100%;
     max-width: 600px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .app {
+    padding: 12px;
+  }
+  
+  .header {
+    margin-bottom: 16px;
+  }
+  
+  .header h1 {
+    font-size: 20px;
+  }
+  
+  .subtitle {
+    font-size: 12px;
+  }
+  
+  .main {
+    gap: 16px;
+  }
+  
+  .plot-container {
+    /* Full width on mobile with small padding */
+    width: calc(100% + 24px);
+    margin-left: -12px;
+    margin-right: -12px;
+    max-width: none;
+  }
+  
+  .plot-container svg {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
 }

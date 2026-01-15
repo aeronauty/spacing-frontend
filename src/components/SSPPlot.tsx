@@ -11,7 +11,7 @@ interface SSPPlotProps {
   onRemoveKnot: (index: number) => void;
 }
 
-// Plot dimensions and margins
+// Plot dimensions and margins (viewBox coordinates)
 const WIDTH = 600;
 const HEIGHT = 400;
 const MARGIN = { top: 30, right: 30, bottom: 50, left: 50 };
@@ -52,6 +52,22 @@ function generateTicks(min: number, max: number, count: number): number[] {
   return ticks;
 }
 
+// Helper to get SVG coordinates from client coordinates (accounting for viewBox)
+function getSvgCoordsFromEvent(
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number
+): { svgX: number; svgY: number } {
+  const rect = svg.getBoundingClientRect();
+  const viewBox = svg.viewBox.baseVal;
+  const scaleX = viewBox.width / rect.width;
+  const scaleY = viewBox.height / rect.height;
+  return {
+    svgX: (clientX - rect.left) * scaleX,
+    svgY: (clientY - rect.top) * scaleY
+  };
+}
+
 const SSPPlot: React.FC<SSPPlotProps> = ({
   knots,
   si,
@@ -61,16 +77,14 @@ const SSPPlot: React.FC<SSPPlotProps> = ({
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Handle click on plot area to add new knot
-  const handlePlotClick = useCallback((e: React.MouseEvent<SVGRectElement>) => {
-    if (e.shiftKey) return; // Shift+click is for removal
+  // Handle adding knot from coordinates
+  const addKnotFromCoords = useCallback((clientX: number, clientY: number, isShift: boolean) => {
+    if (isShift) return; // Shift+click is for removal
     
     const svg = svgRef.current;
     if (!svg) return;
     
-    const rect = svg.getBoundingClientRect();
-    const svgX = e.clientX - rect.left;
-    const svgY = e.clientY - rect.top;
+    const { svgX, svgY } = getSvgCoordsFromEvent(svg, clientX, clientY);
     
     // Check if click is within plot area
     if (svgX < MARGIN.left || svgX > WIDTH - MARGIN.right ||
@@ -84,6 +98,26 @@ const SSPPlot: React.FC<SSPPlotProps> = ({
     onAddKnot(S, F);
   }, [onAddKnot]);
 
+  // Handle click on plot area to add new knot
+  const handlePlotClick = useCallback((e: React.MouseEvent<SVGRectElement>) => {
+    addKnotFromCoords(e.clientX, e.clientY, e.shiftKey);
+  }, [addKnotFromCoords]);
+
+  // Handle touch on plot area to add new knot (double tap)
+  const lastTapRef = useRef<number>(0);
+  const handlePlotTouch = useCallback((e: React.TouchEvent<SVGRectElement>) => {
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+    
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      // Double tap - add knot
+      e.preventDefault();
+      const touch = e.touches[0] || e.changedTouches[0];
+      addKnotFromCoords(touch.clientX, touch.clientY, false);
+    }
+    lastTapRef.current = now;
+  }, [addKnotFromCoords]);
+
   // Generate grid lines
   const sTicks = generateTicks(S_MIN, S_MAX, 10);
   const fTicks = generateTicks(F_MIN, F_MAX, 5);
@@ -96,12 +130,15 @@ const SSPPlot: React.FC<SSPPlotProps> = ({
   return (
     <svg
       ref={svgRef}
-      width={WIDTH}
-      height={HEIGHT}
+      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       style={{ 
+        width: '100%',
+        maxWidth: `${WIDTH}px`,
+        height: 'auto',
         border: '1px solid #ccc', 
         borderRadius: '4px',
-        backgroundColor: '#fafafa'
+        backgroundColor: '#fafafa',
+        touchAction: 'none' // Prevent browser gestures on the plot
       }}
     >
       {/* Grid lines */}
@@ -211,7 +248,7 @@ const SSPPlot: React.FC<SSPPlotProps> = ({
         F (spacing)
       </text>
 
-      {/* Clickable plot area for adding knots */}
+      {/* Clickable/tappable plot area for adding knots */}
       <rect
         x={MARGIN.left}
         y={MARGIN.top}
@@ -219,6 +256,7 @@ const SSPPlot: React.FC<SSPPlotProps> = ({
         height={PLOT_HEIGHT}
         fill="transparent"
         onClick={handlePlotClick}
+        onTouchStart={handlePlotTouch}
         style={{ cursor: 'crosshair' }}
       />
 

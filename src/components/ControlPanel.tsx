@@ -215,8 +215,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <strong>Controls:</strong>
         <ul style={styles.instructionList}>
           <li>Drag knots to adjust spacing</li>
-          <li>Click on plot to add knot</li>
-          <li>Shift+click or right-click knot to remove</li>
+          <li>Click/double-tap plot to add knot</li>
+          <li>Long-press, shift+click, or right-click to remove</li>
           <li>Green knots (endpoints) move vertically only</li>
         </ul>
       </div>

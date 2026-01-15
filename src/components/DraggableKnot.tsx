@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { Knot } from '../types';
 
 interface DraggableKnotProps {
@@ -22,6 +22,7 @@ interface DraggableKnotProps {
 const KNOT_RADIUS = 8;
 const MIN_S_GAP = 0.02; // Minimum gap between knots
 const MIN_F = 0.01;     // Minimum F value
+const LONG_PRESS_DURATION = 500; // ms for long press to remove
 
 const DraggableKnot: React.FC<DraggableKnotProps> = ({
   index,
@@ -42,6 +43,31 @@ const DraggableKnot: React.FC<DraggableKnotProps> = ({
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const longPressTimerRef = useRef<number | null>(null);
+  const hasMoved = useRef(false);
+
+  // Helper to get SVG coordinates from client coordinates (works for both mouse and touch)
+  const getSvgCoords = useCallback((clientX: number, clientY: number) => {
+    if (!svgRef.current) return { svgX: 0, svgY: 0 };
+    const rect = svgRef.current.getBoundingClientRect();
+    // Account for viewBox scaling
+    const svg = svgRef.current;
+    const viewBox = svg.viewBox.baseVal;
+    const scaleX = viewBox.width / rect.width;
+    const scaleY = viewBox.height / rect.height;
+    return {
+      svgX: (clientX - rect.left) * scaleX,
+      svgY: (clientY - rect.top) * scaleY
+    };
+  }, [svgRef]);
+
+  // Clear long press timer
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Shift+click to remove knot
@@ -57,12 +83,28 @@ const DraggableKnot: React.FC<DraggableKnotProps> = ({
     setIsDragging(true);
   }, [index, canRemove, isFirst, isLast, onRemoveKnot]);
 
+  // Touch start - begin drag and start long press timer
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    hasMoved.current = false;
+    setIsDragging(true);
+    
+    // Start long press timer for removal
+    if (canRemove && !isFirst && !isLast) {
+      longPressTimerRef.current = window.setTimeout(() => {
+        if (!hasMoved.current) {
+          setIsDragging(false);
+          onRemoveKnot(index);
+        }
+      }, LONG_PRESS_DURATION);
+    }
+  }, [index, canRemove, isFirst, isLast, onRemoveKnot]);
+
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging || !svgRef.current) return;
 
-    const rect = svgRef.current.getBoundingClientRect();
-    const svgX = e.clientX - rect.left;
-    const svgY = e.clientY - rect.top;
+    const { svgX, svgY } = getSvgCoords(e.clientX, e.clientY);
 
     let newS = toDataS(svgX);
     let newF = toDataF(svgY);
@@ -83,23 +125,66 @@ const DraggableKnot: React.FC<DraggableKnotProps> = ({
     newF = Math.max(MIN_F, Math.min(fMax - 0.1, newF));
 
     onKnotChange(index, { S: newS, F: newF });
-  }, [isDragging, svgRef, toDataS, toDataF, isFirst, isLast, prevS, nextS, fMax, index, onKnotChange]);
+  }, [isDragging, svgRef, getSvgCoords, toDataS, toDataF, isFirst, isLast, prevS, nextS, fMax, index, onKnotChange]);
+
+  // Touch move handler
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (!isDragging || !svgRef.current) return;
+    
+    hasMoved.current = true;
+    clearLongPress(); // Cancel long press if user moves
+    
+    const touch = e.touches[0];
+    const { svgX, svgY } = getSvgCoords(touch.clientX, touch.clientY);
+
+    let newS = toDataS(svgX);
+    let newF = toDataF(svgY);
+
+    // Apply constraints
+    if (isFirst) {
+      newS = 0;
+    } else if (isLast) {
+      newS = 1;
+    } else {
+      newS = Math.max(prevS + MIN_S_GAP, Math.min(nextS - MIN_S_GAP, newS));
+    }
+
+    newF = Math.max(MIN_F, Math.min(fMax - 0.1, newF));
+
+    onKnotChange(index, { S: newS, F: newF });
+  }, [isDragging, svgRef, getSvgCoords, toDataS, toDataF, isFirst, isLast, prevS, nextS, fMax, index, onKnotChange, clearLongPress]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
   }, []);
 
-  // Add global event listeners for drag
+  const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+    clearLongPress();
+  }, [clearLongPress]);
+
+  // Add global event listeners for drag (mouse)
   useEffect(() => {
     if (isDragging) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('touchmove', handleTouchMove, { passive: false });
+      window.addEventListener('touchend', handleTouchEnd);
+      window.addEventListener('touchcancel', handleTouchEnd);
       return () => {
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
+        window.removeEventListener('touchmove', handleTouchMove);
+        window.removeEventListener('touchend', handleTouchEnd);
+        window.removeEventListener('touchcancel', handleTouchEnd);
       };
     }
-  }, [isDragging, handleMouseMove, handleMouseUp]);
+  }, [isDragging, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+
+  // Cleanup long press timer on unmount
+  useEffect(() => {
+    return () => clearLongPress();
+  }, [clearLongPress]);
 
   // Handle right-click to remove
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -134,14 +219,15 @@ const DraggableKnot: React.FC<DraggableKnotProps> = ({
 
   return (
     <g>
-      {/* Larger invisible hit area */}
+      {/* Larger invisible hit area - bigger for touch */}
       <circle
         cx={cx}
         cy={cy}
-        r={KNOT_RADIUS + 4}
+        r={KNOT_RADIUS + 12}
         fill="transparent"
-        style={{ cursor }}
+        style={{ cursor, touchAction: 'none' }}
         onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onContextMenu={handleContextMenu}

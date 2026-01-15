@@ -2,12 +2,35 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Prevent pull-to-refresh on mobile when interacting with the plot */
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   padding: 0;
   background-color: #fafafa;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Prevent text selection while dragging on touch devices */
+.app {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Re-enable selection for text inputs */
+input, textarea {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+button {
+  /* Larger touch targets on mobile */
+  min-height: 44px;
+  min-width: 44px;
 }
 
 button:hover:not(:disabled) {
@@ -21,4 +44,11 @@ button:disabled {
 
 button:active:not(:disabled) {
   transform: scale(0.98);
+}
+
+/* Touch-friendly button active state */
+@media (hover: none) {
+  button:active:not(:disabled) {
+    background-color: #e0e0e0;
+  }
 }
