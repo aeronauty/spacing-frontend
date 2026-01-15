@@ -72,12 +72,7 @@ Honestly, this could've been vanilla JS. But React's declarative approach makes 
 
 This project is configured to automatically deploy to GitHub Pages. Every push to the `main` branch will trigger a build and deployment.
 
-**To enable GitHub Pages:**
-1. Go to your repository Settings → Pages
-2. Under "Build and deployment", set Source to "GitHub Actions"
-3. Push to `main` branch — the site will be live at `https://[username].github.io/ssp-editor/`
 
-The workflow can also be triggered manually from the Actions tab.
 
 ## Credit
 
